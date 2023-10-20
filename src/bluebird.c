@@ -40,10 +40,91 @@ struct _bbWindow{
     int myInt;
 };
 
-int main(void){
+
+//*
+//* This is the window procedure that handles messages sent to the window 
+//* from the operating system
+//*
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+
+// The WINAPI main function, used to begin a program
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                   PSTR lpCmdLine, int nCmdShow)
+{
+    // begin by registering the window class
+    const wchar_t CLASS_NAME[] = L"Sample Window Class";
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc      = WindowProc;
+    wc.hInstance        = hInstance;
+    wc.lpszClassName    = (LPCSTR)CLASS_NAME;
+    RegisterClass(&wc);
+
+    // now create the window using CreateWindowEx()
+    HWND hwnd = CreateWindowEx(
+        0,                              // Optional window styles.
+        (LPCSTR)CLASS_NAME,             // Window class
+        "Learn to Program Windows",     // Window text
+        WS_OVERLAPPEDWINDOW,            // Window style
+
+        // Size and position
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+
+        NULL,      // Parent window
+        NULL,      // Menu
+        hInstance, // Instance handle
+        NULL       // Additional application data
+    );
+
+    if(hwnd == NULL){ return -1; } // if the window wasn't created, close the program
+
+    // show the window using ShowWindow
+    ShowWindow(hwnd, nCmdShow);
+
+    // Begin the message loop
+    MSG msg = {0};
+    while(GetMessage(&msg, NULL, 0, 0) > 0){
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
     
-    bbWindow win;
-    
-    
-    return 0;
+    return 6;
+}
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    switch(uMsg){
+        case WM_SIZE: // Hande window resizing
+            {
+                int width = LOWORD(lParam);     // Macro to get the low-order word
+                int height = HIWORD(lParam);    // Macro to get the high-order word
+                // respond to the message
+            }
+            break;
+        case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+
+            // All painting occurs here, between BeginPaint and EndPaint.
+
+            FillRect(hdc, &ps.rcPaint, (HBRUSH) (COLOR_WINDOW+1));
+
+            EndPaint(hwnd, &ps);
+        }
+        return 0;
+
+        case WM_CLOSE:
+        if(MessageBox(hwnd, "Really quit?", "My application", MB_OKCANCEL) == IDOK){
+            DestroyWindow(hwnd);
+        }
+        // Else, user cancelled, do nothing
+        return 0;
+        
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
 }

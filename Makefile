@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS =
+LFLAGS = -Wl,-subsystem,windows -mwindows
 
 TARGET = Bluebird
 
@@ -10,7 +11,7 @@ SRCS = $(wildcard $(SRC)/*.c)
 all : $(TARGET)
 
 $(TARGET):
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) $(LFLAGS)
 
 .PHONY : clean
 clean:
