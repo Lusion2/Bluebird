@@ -13,6 +13,10 @@
  * 
  * Documentation will be made procedurely as I create this project
  * 
+ * 
+ * Bluebird functions and data structures will be prefixed with "bb"
+ * For example, bbWindow or bbCreateWindow()
+ * 
  */
 
 
@@ -34,20 +38,35 @@ typedef uint8_t         u8;
 typedef int8_t          i8;
 typedef uint8_t         BYTE;
 
-// window struct that will hold global window data
+/* 
+ * Window struct that will hold global window data
+ * 
+ * Currently, this structure only hold the window handle but 
+ * more data will be added as this project continues
+ * 
+ * To initialize this, look at the documentation for bbCreateWindow
+*/
 typedef struct _bbWindow bbWindow;
 struct _bbWindow{
+    /*
+     * Window handle that the operating system uses to 
+     * identify the window being used
+    */
     HWND hwnd;
 };
 
-typedef struct StateInfo{
-    int myInt;
-} StateInfo;
-
-//*
-//*
-//*
-bool bbCreateWindow(bbWindow *bbWin, LPCSTR lpWindowName, int nWidth, int nHeight);
+/*
+ * Creates a window with a name "WindowName" and a width and height of w and h
+ * 
+ * To use this function, do the following:
+ *      bbWindow win = {0};
+ *      bbCreateWindow(&win, *name*, *w*, *h*);
+ * 
+ * Create the struct variable first, then call the function 
+ * 
+ * This initializes the bbWin struct if a window is created
+*/
+bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h);
 
 //*
 //* This is the window procedure that handles messages sent to the window
@@ -55,15 +74,13 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR lpWindowName, int nWidth, int nHeigh
 //*
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-// The WINAPI main function, used to begin a program
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                   PSTR lpCmdLine, int nCmdShow)
-{
-    bbWindow win = {0};
-    bbCreateWindow(&win, "Bluebird", 1280, 720);
 
-    // show the window using ShowWindow
-    ShowWindow(win.hwnd, nCmdShow);
+int main(void){
+    // Initialize our window
+    bbWindow win = {0};
+    if(!bbCreateWindow(&win, "Bluebird", 1280, 720)){
+        return -1;
+    }
 
     // Begin the message loop
     MSG msg = {0};
@@ -105,7 +122,7 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 }
 
 
-bool bbCreateWindow(bbWindow *bbWin, LPCSTR lpWindowName, int width, int height){
+bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // register the window class
     const wchar_t CLASS_NAME[] = L"Sample Window Class";
     WNDCLASS wc = {0};
@@ -114,17 +131,15 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR lpWindowName, int width, int height)
     wc.lpszClassName = (LPCSTR)CLASS_NAME;
     RegisterClass(&wc);
 
-    StateInfo pState = {0};
-
     // create the window using CreateWindowEx()
     HWND hwnd = CreateWindowEx(
         0,                   // Optional window styles.
         (LPCSTR)CLASS_NAME,  // Window class
-        lpWindowName,        // Window text
+        WindowName,          // Window text
         WS_OVERLAPPEDWINDOW, // Window style
 
         // Size and position
-        CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+        CW_USEDEFAULT, CW_USEDEFAULT, w, h,
 
         NULL,                  // Parent window
         NULL,                  // Menu
@@ -132,7 +147,12 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR lpWindowName, int width, int height)
         bbWin                  // Additional application data
     );
 
-    bbWin->hwnd = hwnd;
+    // return false if the window was not created
+    if(!hwnd){ return false; }
 
-    return (hwnd ? TRUE : FALSE);
+    // add hwnd to bbWin struct
+    bbWin->hwnd = hwnd;
+    // show the window using ShowWindow
+    ShowWindow(bbWin->hwnd, 1);
+    return true;
 }
