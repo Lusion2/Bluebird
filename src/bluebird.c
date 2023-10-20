@@ -5,8 +5,8 @@
  * If you do use it, I ask that you cite me as your source
  * 
  * Bluebird is a project I am making in an attempt to learn more about graphics programming 
- * and the WIN32 API. This project is definitely not the next OpenGL (especially since it's a 
- * software renderer) but it will serve as a great learning opportunity
+ * and the WIN32 API. This project is definitely not the next OpenGL
+ * but it will serve as a great learning opportunity
  * 
  * Currently, this project will be a software renderer but in the future, I may consider looking at
  * implementing the NVIDIA Cuda API to access the graphics card, but that's a long ways away.
@@ -21,11 +21,11 @@
 
 
 #include <windows.h>
+#include <d2d1.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
-
 
 // int typedefs
 typedef uint64_t        u64;
@@ -37,6 +37,16 @@ typedef int16_t         i16;
 typedef uint8_t         u8;
 typedef int8_t          i8;
 typedef uint8_t         BYTE;
+
+
+/*
+ * 
+ * 
+*/
+typedef struct bbStateInfo bbStateInfo;
+struct bbStateInfo{
+
+}; 
 
 /* 
  * Window struct that will hold global window data
@@ -53,6 +63,13 @@ struct _bbWindow{
      * identify the window being used
     */
     HWND hwnd;
+
+    /*
+     * Holds the current state information of the window
+     */
+    bbStateInfo *pState;
+
+
 };
 
 /*
@@ -68,6 +85,12 @@ struct _bbWindow{
 */
 bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h);
 
+/*
+ * Currently, this function just paints a circle but will eventually
+ * have more functionality
+*/
+void bbPaint(bbWindow *bbWin);
+
 //*
 //* This is the window procedure that handles messages sent to the window
 //* from the operating system
@@ -82,6 +105,8 @@ int main(void){
         return -1;
     }
 
+    
+
     // Begin the message loop
     MSG msg = {0};
     while(GetMessage(&msg, NULL, 0, 0) > 0){
@@ -93,6 +118,17 @@ int main(void){
 }
 
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    bbStateInfo *pState = NULL;
+    if(uMsg == WM_CREATE){
+        CREATESTRUCT *pCreate = (CREATESTRUCT *)lParam;
+        pState = (bbStateInfo *)pCreate->lpCreateParams;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)pState);
+    }
+    else{
+        LONG_PTR ptr = GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        pState = (bbStateInfo*)ptr;
+    }
+    
     switch(uMsg){
         case WM_PAINT:
         {
@@ -107,6 +143,7 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         }
         return 0;
 
+            
         case WM_CLOSE:
             DestroyWindow(hwnd);
             // Else, user cancelled, do nothing
@@ -119,6 +156,7 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         default:
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
+    return TRUE;
 }
 
 
@@ -144,7 +182,7 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
         NULL,                  // Parent window
         NULL,                  // Menu
         GetModuleHandle(NULL), // Instance handle
-        bbWin                  // Additional application data
+        bbWin->pState          // Additional application data
     );
 
     // return false if the window was not created
@@ -155,4 +193,8 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // show the window using ShowWindow
     ShowWindow(bbWin->hwnd, 1);
     return true;
+}
+
+void bbPaint(bbWindow *bbWin){
+    
 }

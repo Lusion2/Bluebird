@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS =
+CFLAGS = -Wall -Wextra
 LFLAGS = -Wl,-subsystem,windows -mwindows
 
 TARGET = Bluebird

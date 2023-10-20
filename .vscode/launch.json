@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/Treyse/Desktop/Dev/Bluebird",
-      "program": "c:/Users/Treyse/Desktop/Dev/Bluebird/build/Debug/outDebug",
+      "cwd": "c:/Users/Treyse/Desktop/Dev/Bluebird/src",
+      "program": "c:/Users/Treyse/Desktop/Dev/Bluebird/src/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
