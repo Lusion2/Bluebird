@@ -8,7 +8,7 @@
  * and the WIN32 API and minimal OpenGL (software rendering)
  * 
  * Currently, this project will be a software renderer but in the future, I may consider looking at
- * implementing the NVIDIA Cuda API to access the graphics card, but that's a long ways away.
+ * implementing more OpenGL functionality instead of my own code
  * 
  * Documentation will be made procedurely as I create this project
  * 
@@ -24,9 +24,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #define WIDTH   1280
 #define HEIGHT  720
+
+// Currently, there are only 10 available shaders
+#define MAX_SHADERS 10
 
 // int typedefs
 typedef uint64_t        u64;
@@ -74,10 +78,23 @@ struct bbVec2i{
  *
  * Holds the vertex positions of a triangle in coordinate space using bbVec2f
  */
-typedef struct bbTrif bbTrif;
-struct bbTrif{
+typedef struct bbTriF bbTriF;
+struct bbTriF{
     bbVec2f v1, v2, v3;
 };
+
+/*
+ * Holds shader parameters that can be activated and deactivated at the user's command
+ *
+ * The bbWindow struct will hold an array of bbShaderState for different shaders to be used
+ */
+typedef struct bbShaderState bbShaderState;
+struct bbShaderState{
+    // color coordinates
+    bbVec2f colorCoords;
+    bool useColorCoords;
+};
+
 
 /*
  * This is currently unused but could be made into something later 
@@ -86,6 +103,17 @@ typedef struct bbStateInfo bbStateInfo;
 struct bbStateInfo{
 
 }; 
+
+/* 
+ * Enum to determine the draw type
+ * 
+ * Currently, primitives can be drawn filled in or as the wireframe
+ */
+typedef enum bbDrawType bbDrawType;
+enum bbDrawType{
+    bbFILL,
+    bbLINE
+};
 
 /* 
  * Window struct that will hold global window data
@@ -131,6 +159,17 @@ struct _bbWindow{
      * OpenGL context for drawing to the screen
      */
     HGLRC glContext;
+
+    /*
+     * The draw type enum to determine whether to draw 
+     * lines or to fill in primitives
+     * 
+     * This is default initialized to bbFILL
+     */
+    bbDrawType DrawType;
+
+    // Shader functionality here:
+    bbShaderState shaderState[MAX_SHADERS];
 };
 
 /*
@@ -168,11 +207,23 @@ void bbClear(bbWindow *bbWin);
 void bbPutPixel(bbWindow *win, u32 x, u32 y, bbPixel p);
 
 /*
+ * Returns a positive number if the point is on the right of a line
+ * Returns a negative number if the point is on the left of the line
+ * Returns zero if the point is on the line
+ * This function is used for triangle rasterization, it can be ignored
+*/
+float bbEdgeFunc(bbVec2f *a, bbVec2f *b, bbVec2f *c);
+
+/*
  * Draws a triangle with vertices specified in the bbTri and is colored in using a shader callback
  * 
- * The 
+ * The shadercallback is a function defined by the programmer used to color in the triangle
+ * Shaders will only be used for color
+ * 
+ * An example shadercallback might look like this:
+ *      // TODO : {insert code here}
  */
-// void bbTriangleS(bbWindow *win, );
+void bbTriangleFS(bbWindow *bbWin, bbTriF tri, void(*shadercallback)(bbWindow *win, bbVec2i v));
 
 /*
  * Draws the bbWindow PIXELS array to the screen and swaps the buffers
@@ -192,6 +243,11 @@ void bbCreateDebugConsole();
 //*
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+void shader1(bbWindow *bbWin, bbVec2i v, u8 argCount, ...){
+    bbPixel p = {.R = v.x, .G = v.x / bbWin->width, .B = v.y / bbWin->height};
+    bbPutPixel(bbWin, v.x, v.y, p);
+}
+
 int main(void){
     // Make a debug console
     bbCreateDebugConsole();
@@ -205,16 +261,28 @@ int main(void){
     // Begin the message loop
     MSG msg = {0};
 
-    BYTE i = 0;
+    bbTriF tri1 = {
+        .v1.x = 0.5f, .v1.y = 0.5f, // top right
+        .v2.x = 0.5f, .v2.y = -0.5f,
+        .v3.x = -0.5f, .v3.y = -0.5f, 
+    };
+    bbTriF tri2 = {
+        .v1.x = -0.5f, .v1.y =  0.5f, // top left
+        .v2.x =  0.5f, .v2.y =  0.5f, // top right
+        .v3.x = -0.5f, .v3.y = -0.5f, // bottom left
+    };
 
     while(GetMessage(&msg, NULL, 0, 0) > 0){
         bbClear(&win);
-        bbPixel p = {.R = i, .G = i, .B = i};
-        bbPutPixel(&win, WIDTH / 2, HEIGHT / 2, p);
+        
+        bbTriangleFS(&win, tri1, shader1);
+        bbTriangleFS(&win, tri2, shader1);
+
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+        
+        
         bbSwapBuffers(&win);
-        i++;
     }
     
     bbTerminate(&win);
@@ -326,6 +394,9 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     bbWin->height       = h;
     bbWin->PIXELS       = (bbPixel*)malloc(bbWin->pixels_size * sizeof(bbPixel));
 
+    // Default the draw type to fill
+    bbWin->DrawType     = bbFILL;
+
     // Set the default clear color
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -377,6 +448,30 @@ void bbPutPixel(bbWindow *bbWin, u32 x, u32 y, bbPixel p){
     if(x > bbWin->width || y > bbWin->height){ return; }
     
     bbWin->PIXELS[y*bbWin->width + x] = p;
+}
+
+float bbEdgeFunc(bbVec2f *a, bbVec2f *b, bbVec2f *c){
+    return ((c->x - a->x) * (b->y - a->y) - (c->y - a->y) * (b->x - a->x));
+}
+
+void bbTriangleFS(bbWindow *bbWin, bbTriF tri, void (*shadercallback)(bbWindow *win, bbVec2i v)){
+    if(bbWin->DrawType == bbFILL){
+        tri.v1.x = (((tri.v1.x + 1.0f) * 0.5f) * bbWin->width); tri.v1.y = (((tri.v1.y + 1.0f) * 0.5f) * bbWin->height);
+        tri.v2.x = (((tri.v2.x + 1.0f) * 0.5f) * bbWin->width); tri.v2.y = (((tri.v2.y + 1.0f) * 0.5f) * bbWin->height);
+        tri.v3.x = (((tri.v3.x + 1.0f) * 0.5f) * bbWin->width); tri.v3.y = (((tri.v3.y + 1.0f) * 0.5f) * bbWin->height);
+        for(u32 y = 0; y < bbWin->height; y++){
+            for(u32 x = 0; x < bbWin->width; x++){
+                bbVec2f p = {.x = x, .y = y};
+                float w0 = bbEdgeFunc(&tri.v2, &tri.v3, &p);
+                float w1 = bbEdgeFunc(&tri.v3, &tri.v1, &p);
+                float w2 = bbEdgeFunc(&tri.v1, &tri.v2, &p);
+                if(w0 >= 0 && w1 >= 0 && w2 >= 0){
+                    bbVec2i v = {x, y};
+                    shadercallback(bbWin, v);
+                }
+            }
+        }
+    }
 }
 
 void bbSwapBuffers(bbWindow *bbWin){
