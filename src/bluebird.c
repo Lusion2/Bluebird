@@ -90,8 +90,16 @@ struct bbTriF{
  */
 typedef struct bbShaderState bbShaderState;
 struct bbShaderState{
-    // color coordinates
-    bbVec2f colorCoords;
+    /*
+     * The colors at each corner of a triangle
+     *
+     * color[0] will map to tri.v1, 
+     * color[1] will map to tri.v2,
+     * color[2] will map to tri.v3
+     * 
+     * Color coords can be linearly interpolated using shaders
+     */
+    bbPixel color[3];
     bool useColorCoords;
 };
 
@@ -169,7 +177,15 @@ struct _bbWindow{
     bbDrawType DrawType;
 
     // Shader functionality here:
+    /*
+     * The shaderState for each shader
+     * 
+     * The shaderIndex will hold the current shader state that we want to draw
+     * The shader[shaderIndex] will use the shaderState[shaderIndex] to draw
+     */
     bbShaderState shaderState[MAX_SHADERS];
+    u8 shaderIndex;
+    void (*shader[MAX_SHADERS])(bbWindow *win, bbVec2i v);
 };
 
 /*
@@ -185,6 +201,23 @@ struct _bbWindow{
  * This initializes the bbWin struct if a window is created
 */
 bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h);
+
+/* 
+ * Sets the shader at bbWin->shaderIndex
+ */
+void bbSetShader(bbWindow *bbWin, void (*shader)(bbWindow *win, bbVec2i v));
+
+/*
+ * Sets the current shader index
+ *
+ * The most recent index set will be the one used when calling a shader
+ */
+void bbSetShaderIndex(bbWindow *bbWin, u8 index);
+
+/*
+ * Sets shader state at bbWin->shaderIndex
+ */
+void bbSetShaderState(bbWindow *bbWin, bbShaderState state);
 
 /*
  * Initializes a bbWindow's pfd. This is only used in bbCreateWindow
@@ -217,13 +250,16 @@ float bbEdgeFunc(bbVec2f *a, bbVec2f *b, bbVec2f *c);
 /*
  * Draws a triangle with vertices specified in the bbTri and is colored in using a shader callback
  * 
+ * The shader used will be the shader at bbWin->shaders[bbWin->shaderIndex] and bbWin->shaderState[bbWin->shaderIndex]
+ * will determine the parameters used. This has to be set before calling this function
+ * 
  * The shadercallback is a function defined by the programmer used to color in the triangle
  * Shaders will only be used for color
  * 
  * An example shadercallback might look like this:
  *      // TODO : {insert code here}
  */
-void bbTriangleFS(bbWindow *bbWin, bbTriF tri, void(*shadercallback)(bbWindow *win, bbVec2i v));
+void bbTriangleFS(bbWindow *bbWin, bbTriF tri);
 
 /*
  * Draws the bbWindow PIXELS array to the screen and swaps the buffers
@@ -243,8 +279,11 @@ void bbCreateDebugConsole();
 //*
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-void shader1(bbWindow *bbWin, bbVec2i v, u8 argCount, ...){
-    bbPixel p = {.R = v.x, .G = v.x / bbWin->width, .B = v.y / bbWin->height};
+void shader1(bbWindow *bbWin, bbVec2i v){
+    bbPixel p = {0};
+    bbShaderState state = bbWin->shaderState[bbWin->shaderIndex];
+    
+    
     bbPutPixel(bbWin, v.x, v.y, p);
 }
 
@@ -257,6 +296,13 @@ int main(void){
     if(!bbCreateWindow(&win, "Bluebird", WIDTH, HEIGHT)){
         return -1;
     }
+
+    bbShaderState state = {.useColorCoords = true};
+    state.colorCoords[0].x = 0.25f; state.colorCoords[0].y = 0.25f; 
+
+    bbSetShaderIndex(&win, 0);
+    bbSetShader(&win, shader1);
+    bbSetShaderState(&win, state);
 
     // Begin the message loop
     MSG msg = {0};
@@ -275,8 +321,8 @@ int main(void){
     while(GetMessage(&msg, NULL, 0, 0) > 0){
         bbClear(&win);
         
-        bbTriangleFS(&win, tri1, shader1);
-        bbTriangleFS(&win, tri2, shader1);
+        bbTriangleFS(&win, tri1);
+        bbTriangleFS(&win, tri2);
 
         TranslateMessage(&msg);
         DispatchMessage(&msg);
@@ -327,7 +373,7 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // Setting this to NULL in case it has a garbage value if bbTerminate() 
     // is called before mallocing the pixels
-    // bbWin->PIXELS = NULL;
+    bbWin->PIXELS = NULL;
     
     // register the window class
     const wchar_t CLASS_NAME[] = L"Bluebird Window Class";
@@ -397,6 +443,9 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // Default the draw type to fill
     bbWin->DrawType     = bbFILL;
 
+    // Default the shader index to 0
+    bbWin->shaderIndex  = 0;
+
     // Set the default clear color
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -431,6 +480,19 @@ PIXELFORMATDESCRIPTOR bbSetPFD(bbWindow *bbWin){
         return pfd;
 }
 
+void bbSetShader(bbWindow *bbWin, void (*shader)(bbWindow *win, bbVec2i v)){
+    bbWin->shader[bbWin->shaderIndex] = shader;
+}
+
+void bbSetShaderIndex(bbWindow *bbWin, u8 index){
+    if(index >= MAX_SHADERS) { return; }
+    bbWin->shaderIndex = index;
+}
+
+void bbSetShaderState(bbWindow *bbWin, bbShaderState state){
+    bbWin->shaderState[bbWin->shaderIndex] = state;
+}
+
 void bbTerminate(bbWindow *bbWin){
     if(bbWin->PIXELS != NULL){ free(bbWin->PIXELS); }
 }
@@ -454,7 +516,7 @@ float bbEdgeFunc(bbVec2f *a, bbVec2f *b, bbVec2f *c){
     return ((c->x - a->x) * (b->y - a->y) - (c->y - a->y) * (b->x - a->x));
 }
 
-void bbTriangleFS(bbWindow *bbWin, bbTriF tri, void (*shadercallback)(bbWindow *win, bbVec2i v)){
+void bbTriangleFS(bbWindow *bbWin, bbTriF tri){
     if(bbWin->DrawType == bbFILL){
         tri.v1.x = (((tri.v1.x + 1.0f) * 0.5f) * bbWin->width); tri.v1.y = (((tri.v1.y + 1.0f) * 0.5f) * bbWin->height);
         tri.v2.x = (((tri.v2.x + 1.0f) * 0.5f) * bbWin->width); tri.v2.y = (((tri.v2.y + 1.0f) * 0.5f) * bbWin->height);
@@ -467,12 +529,13 @@ void bbTriangleFS(bbWindow *bbWin, bbTriF tri, void (*shadercallback)(bbWindow *
                 float w2 = bbEdgeFunc(&tri.v1, &tri.v2, &p);
                 if(w0 >= 0 && w1 >= 0 && w2 >= 0){
                     bbVec2i v = {x, y};
-                    shadercallback(bbWin, v);
+                    bbWin->shader[bbWin->shaderIndex](bbWin, v);
                 }
             }
         }
     }
 }
+
 
 void bbSwapBuffers(bbWindow *bbWin){
     glDrawPixels(bbWin->width, bbWin->height, GL_RGBA, GL_UNSIGNED_BYTE, bbWin->PIXELS);
