@@ -131,10 +131,11 @@ PIXELFORMATDESCRIPTOR bbSetPFD(bbWindow *bbWin);
 void bbTerminate(bbWindow *bbWin);
 
 /*
- * Currently, this function just paints a circle but will eventually
- * have more functionality
+ * Clears the screen
 */
-void bbPaint(bbWindow *bbWin);
+void bbClear();
+
+void bbCreateDebugConsole();
 
 //*
 //* This is the window procedure that handles messages sent to the window
@@ -146,12 +147,7 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 bbWindow win = {0};
 
 int main(void){
-    AllocConsole();
-
-    FILE *stream;
-    freopen_s(&stream, "CONIN$", "r", stdin);
-    freopen_s(&stream, "CONOUT$", "w", stdout);
-    freopen_s(&stream, "CONOUT$", "w", stderr);
+    bbCreateDebugConsole();
 
     if(!bbCreateWindow(&win, "Bluebird", WIDTH, HEIGHT)){
         return -1;
@@ -164,11 +160,12 @@ int main(void){
         bbPixel p = {.R = 255, .G = 0, .B = (int)(255/2), .A = 255};
         win.PIXELS[i] = p;
     }
+    printf("hi\n");
 
     while(GetMessage(&msg, NULL, 0, 0) > 0){
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        bbPaint(&win);
+        bbClear();
         SwapBuffers(win.hdc);
     }
     
@@ -311,9 +308,16 @@ void bbTerminate(bbWindow *bbWin){
     if(bbWin->PIXELS){ free(bbWin->PIXELS); }
 }
 
-void bbPaint(bbWindow *bbWin){
+void bbClear(){
     glClear(GL_COLOR_BUFFER_BIT);
     glFlush();
+}
 
-    glDrawPixels(10, 10, GL_FILL, GL_FILL, bbWin->PIXELS);
+void bbCreateDebugConsole(){
+    AllocConsole();
+
+    FILE *stream;
+    freopen_s(&stream, "CONIN$", "r", stdin);
+    freopen_s(&stream, "CONOUT$", "w", stdout);
+    freopen_s(&stream, "CONOUT$", "w", stderr);
 }
