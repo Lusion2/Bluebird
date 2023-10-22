@@ -28,9 +28,6 @@
 #define WIDTH   1280
 #define HEIGHT  720
 
-// Debug macro
-#define DEBUG(message) OutputDebugStringA(message)
-
 // int typedefs
 typedef uint64_t        u64;
 typedef int64_t         i64;
@@ -50,7 +47,36 @@ typedef int8_t          i8;
 typedef struct bbPixel bbPixel;
 struct bbPixel{
     BYTE R, G, B, A;
+};
+
+/*
+ * 2-Dimensional vector struct
+ * 
+ * Holds an x and y coordinate as a float in coordinate space (-1.0 to 1.0)
+ */
+typedef struct bbVec2f bbVec2f;
+struct bbVec2f{
+    float x, y;
+};
+
+/*
+ * 2-Dimensional vector struct
+ * 
+ * Holds an x and y coordinate as an unsigned int in pixel space (0 to WIDTH or 0 to HEIGHT )
+ */
+typedef struct bbVec2i bbVec2i;
+struct bbVec2i{
     u32 x, y;
+};
+
+/*
+ * Triangle struct
+ *
+ * Holds the vertex positions of a triangle in coordinate space using bbVec2f
+ */
+typedef struct bbTrif bbTrif;
+struct bbTrif{
+    bbVec2f v1, v2, v3;
 };
 
 /*
@@ -113,8 +139,9 @@ struct _bbWindow{
  * To use this function, do the following:
  *      bbWindow win = {0};
  *      bbCreateWindow(&win, *name*, *w*, *h*);
+ *    
  * 
- * Create the struct variable first, then call the function 
+ * Create the struct variable first, then call the function
  * 
  * This initializes the bbWin struct if a window is created
 */
@@ -133,8 +160,30 @@ void bbTerminate(bbWindow *bbWin);
 /*
  * Clears the screen
 */
-void bbClear();
+void bbClear(bbWindow *bbWin);
 
+/*
+ * Draws pixel, p, to a specified location on the screen, (x, y)
+*/
+void bbPutPixel(bbWindow *win, u32 x, u32 y, bbPixel p);
+
+/*
+ * Draws a triangle with vertices specified in the bbTri and is colored in using a shader callback
+ * 
+ * The 
+ */
+// void bbTriangleS(bbWindow *win, );
+
+/*
+ * Draws the bbWindow PIXELS array to the screen and swaps the buffers
+ * 
+ * This should be called at the end of each update
+ */
+void bbSwapBuffers(bbWindow *win);
+
+/*
+ * Creates a debug console for printf and other printing commands to work with
+ */
 void bbCreateDebugConsole();
 
 //*
@@ -143,12 +192,12 @@ void bbCreateDebugConsole();
 //*
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-// Initialize our window
-bbWindow win = {0};
-
 int main(void){
+    // Make a debug console
     bbCreateDebugConsole();
 
+    // Initialize our window
+    bbWindow win = {0};
     if(!bbCreateWindow(&win, "Bluebird", WIDTH, HEIGHT)){
         return -1;
     }
@@ -156,17 +205,16 @@ int main(void){
     // Begin the message loop
     MSG msg = {0};
 
-    for(size_t i = 0; i < win.pixels_size; i++){
-        bbPixel p = {.R = 255, .G = 0, .B = (int)(255/2), .A = 255};
-        win.PIXELS[i] = p;
-    }
-    printf("hi\n");
+    BYTE i = 0;
 
     while(GetMessage(&msg, NULL, 0, 0) > 0){
+        bbClear(&win);
+        bbPixel p = {.R = i, .G = i, .B = i};
+        bbPutPixel(&win, WIDTH / 2, HEIGHT / 2, p);
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        bbClear();
-        SwapBuffers(win.hdc);
+        bbSwapBuffers(&win);
+        i++;
     }
     
     bbTerminate(&win);
@@ -209,6 +257,10 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 
 
 bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
+    // Setting this to NULL in case it has a garbage value if bbTerminate() 
+    // is called before mallocing the pixels
+    // bbWin->PIXELS = NULL;
+    
     // register the window class
     const wchar_t CLASS_NAME[] = L"Bluebird Window Class";
     WNDCLASS wc = {0};
@@ -243,17 +295,19 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
         MessageBox(bbWin->hwnd, "issue creating hdc", "Error", 1);
         exit(1);
     }
+    // pixel format descriptor
     bbWin->pfd          = bbSetPFD(bbWin);
     int pixelFormat     = ChoosePixelFormat(bbWin->hdc, &bbWin->pfd);
     if(pixelFormat == 0){
         MessageBox(bbWin->hwnd, "issue with pixelFormat", "Error", 1);
         exit(1);
     }
+    // set the pixel format
     if(!SetPixelFormat(bbWin->hdc, pixelFormat, &bbWin->pfd)){
         MessageBox(bbWin->hwnd, "issue setting pixelFormat", "Error", 1);
         exit(1);
     }
-    
+    // create the OpenGL context
     bbWin->glContext    = wglCreateContext(bbWin->hdc);
     if(!bbWin->glContext){
         MessageBox(bbWin->hwnd, "issue creating OpenGL context", "Error", 1);
@@ -266,12 +320,14 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
         exit(1);
     }
 
+    // Initialize our pixels to draw
     bbWin->pixels_size  = w * h;
     bbWin->width        = w;
     bbWin->height       = h;
     bbWin->PIXELS       = (bbPixel*)malloc(bbWin->pixels_size * sizeof(bbPixel));
 
-    glClearColor(0.0f, 0.0f, 5.0f, 1.0f);
+    // Set the default clear color
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     // show the window using ShowWindow
     ShowWindow(bbWin->hwnd, SW_SHOW);
@@ -281,36 +337,51 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
 PIXELFORMATDESCRIPTOR bbSetPFD(bbWindow *bbWin){
     PIXELFORMATDESCRIPTOR pfd = // pfd Tells Windows How We Want Things To Be
         {
-            sizeof(PIXELFORMATDESCRIPTOR), // Size Of This Pixel Format Descriptor
-            1,                             // Version Number
-            PFD_DRAW_TO_WINDOW |           // Format Must Support Window
-            PFD_SUPPORT_OPENGL |       // Format Must Support OpenGL
-            PFD_DOUBLEBUFFER,          // Must Support Double Buffering
-            PFD_TYPE_RGBA,                 // Request An RGBA Format
-            32,                          // Select Our Color Depth
-            0, 0, 0, 0, 0, 0,              // Color Bits Ignored
-            0,                             // No Alpha Buffer
-            0,                             // Shift Bit Ignored
-            0,                             // No Accumulation Buffer
-            0, 0, 0, 0,                    // Accumulation Bits Ignored
-            16,                            // 16Bit Z-Buffer (Depth Buffer)
-            0,                             // No Stencil Buffer
-            0,                             // No Auxiliary Buffer
-            PFD_MAIN_PLANE,                // Main Drawing Layer
-            0,                             // Reserved
-            0, 0, 0                        // Layer Masks Ignored
+            sizeof(PIXELFORMATDESCRIPTOR),  // Size Of This Pixel Format Descriptor
+            1,                              // Version Number
+            PFD_DRAW_TO_WINDOW |            // Format Must Support Window
+            PFD_SUPPORT_OPENGL |            // Format Must Support OpenGL
+            PFD_DOUBLEBUFFER,               // Must Support Double Buffering
+            PFD_TYPE_RGBA,                  // Request An RGBA Format
+            32,                             // Select Our Color Depth
+            0, 0, 0, 0, 0, 0,               // Color Bits Ignored
+            0,                              // No Alpha Buffer
+            0,                              // Shift Bit Ignored
+            0,                              // No Accumulation Buffer
+            0, 0, 0, 0,                     // Accumulation Bits Ignored
+            16,                             // 16Bit Z-Buffer (Depth Buffer)
+            0,                              // No Stencil Buffer
+            0,                              // No Auxiliary Buffer
+            PFD_MAIN_PLANE,                 // Main Drawing Layer
+            0,                              // Reserved
+            0, 0, 0                         // Layer Masks Ignored
         };
         bbWin->pfd = pfd;
         return pfd;
 }
 
 void bbTerminate(bbWindow *bbWin){
-    if(bbWin->PIXELS){ free(bbWin->PIXELS); }
+    if(bbWin->PIXELS != NULL){ free(bbWin->PIXELS); }
 }
 
-void bbClear(){
+void bbClear(bbWindow *bbWin){
     glClear(GL_COLOR_BUFFER_BIT);
+    for(size_t i = 0; i < bbWin->pixels_size; i++){
+        bbPixel p = {0};
+        bbWin->PIXELS[i] = p;
+    }
     glFlush();
+}
+
+void bbPutPixel(bbWindow *bbWin, u32 x, u32 y, bbPixel p){
+    if(x > bbWin->width || y > bbWin->height){ return; }
+    
+    bbWin->PIXELS[y*bbWin->width + x] = p;
+}
+
+void bbSwapBuffers(bbWindow *bbWin){
+    glDrawPixels(bbWin->width, bbWin->height, GL_RGBA, GL_UNSIGNED_BYTE, bbWin->PIXELS);
+    SwapBuffers(bbWin->hdc);
 }
 
 void bbCreateDebugConsole(){
