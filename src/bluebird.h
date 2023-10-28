@@ -7,7 +7,7 @@
  * Bluebird is a project I am making in an attempt to learn more about graphics programming
  * and the WIN32 API and minimal OpenGL (software rendering)
  *
- * Currently, this project will be a software renderer but in the future, I may consider looking at
+ * Currently, this project will be a software renderer but in the future I may consider looking at
  * implementing more OpenGL functionality instead of my own code
  *
  * Documentation will be made procedurely as I create this project

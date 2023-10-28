@@ -109,9 +109,9 @@ struct bbShaderState{
 /*
  * This is currently unused but could be made into something later
  */
-typedef struct bbStateInfo bbStateInfo;
-struct bbStateInfo{
-};
+// typedef struct bbStateInfo bbStateInfo;
+// struct bbStateInfo{
+// };
 
 /*
  * Enum to determine the draw type
@@ -300,6 +300,11 @@ void bbDEBUGfpsCounter(bbWindow *bbWin);
 //*
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+/*
+ * Sets the size of the window and 
+ */
+void bbWindowResize(bbWindow *bbWin, u32 w, u32 h);
+
 
 void shader1(bbWindow *bbWin, bbVec2i v);
 void shader2(bbWindow *bbWin, bbVec2i v);
@@ -379,28 +384,8 @@ void shader2(bbWindow *bbWin, bbVec2i v){
     bbPixel p = {0x55, 0x00, 0xff, 0xff};
     // bbShaderState state = bbWin->shaderState[bbWin->shaderIndex];
     
-    
     bbPutPixel(v.x, v.y, p);
 }
-
-LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
-    switch(uMsg){ 
-        case WM_PAINT:
-            return 0;
-        case WM_CLOSE:
-            DestroyWindow(hwnd);
-            return 0;
-        
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
-
-        default:
-            return DefWindowProc(hwnd, uMsg, wParam, lParam);
-    }
-    return TRUE;
-}
-
 
 bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // Setting this to NULL in case it has a garbage value if bbTerminate() 
@@ -466,12 +451,9 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
         exit(1);
     }
 
+    SetWindowLongPtr(bbWin->hwnd, GWLP_USERDATA, (LONG_PTR)bbWin);
 
-    // Initialize our pixels to draw
-    bbWin->pixels_size  = w * h;
-    bbWin->width        = w;
-    bbWin->height       = h;
-    // bbWin->PIXELS       = (bbPixel*)malloc(bbWin->pixels_size * sizeof(bbPixel));
+    bbWindowResize(bbWin, w, h);
 
     // Default the draw type to fill
     bbWin->DrawType     = bbFILL;
@@ -492,6 +474,40 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
     // show the window using ShowWindow
     ShowWindow(bbWin->hwnd, SW_SHOW);
     return true;
+}
+
+LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    bbWindow *bbWin = (bbWindow *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if(bbWin == NULL || bbWin == (bbWindow *)-1){
+        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+    
+    switch(uMsg){ 
+        case WM_SIZE:
+            // Need  bbWin struct to fix size issues
+            bbWindowResize(bbWin, LOWORD(lParam), HIWORD(lParam));
+            return 0;
+        case WM_PAINT:
+            return 0;
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            return 0;
+        
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+    return TRUE;
+}
+
+void bbWindowResize(bbWindow *bbWin, u32 w, u32 h){
+    printf("Width: %i, Height: %i\n", w, h);
+    bbWin->width = w;
+    bbWin->height = h;
+    bbWin->pixels_size = w * h;
 }
 
 PIXELFORMATDESCRIPTOR bbSetPFD(bbWindow *bbWin){
