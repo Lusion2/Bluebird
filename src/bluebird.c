@@ -132,8 +132,8 @@ enum bbDrawType{
  *
  * To initialize this, look at the documentation for bbCreateWindow
  */
-typedef struct _bbWindow bbWindow;
-struct _bbWindow{
+typedef struct bbWindow bbWindow;
+struct bbWindow{
     /*
      * Window handle that the operating system uses to
      * identify the window being used
@@ -188,14 +188,9 @@ struct _bbWindow{
     u8 shaderIndex;
     void (*shader[MAX_SHADERS])(bbWindow *win, bbVec2i v);
 
-    // Time stuff
-    //* between last frame and this frame
+    //* Time stuff
     u16 delta_t;
-
-    //* time of the current frame
     u32 current_t;
-
-    //* time of the last frame
     u32 lastFrame_t;
 };
 
@@ -249,6 +244,14 @@ void bbTerminate(bbWindow *bbWin);
  * Clears the screen
  */
 void bbClear();
+
+/*
+ * Sets the clear color
+ *
+ * The alpha channel can be ignored since the background will always be opaque
+ */
+void bbClearColorP(bbPixel p);
+void bbClearColorB(BYTE r, BYTE g, BYTE b);
 
 /*
  * Draws pixel, p, to a specified location on the screen, (x, y)
@@ -452,8 +455,10 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
         exit(1);
     }
 
+    // Add this window to the user data so we can access it within bbWindowProc
     SetWindowLongPtr(bbWin->hwnd, GWLP_USERDATA, (LONG_PTR)bbWin);
 
+    // Initialize the size of the window
     bbWindowResize(bbWin, w, h);
 
     // Default the draw type to fill
@@ -478,6 +483,7 @@ bool bbCreateWindow(bbWindow *bbWin, LPCSTR WindowName, u32 w, u32 h){
 }
 
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    // Get a pointer to the window so we can access it without using it as a parameter 
     bbWindow *bbWin = (bbWindow *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if(bbWin == NULL || bbWin == (bbWindow *)-1){
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -485,7 +491,6 @@ LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     
     switch(uMsg){ 
         case WM_SIZE:
-            // Need  bbWin struct to fix size issues
             bbWindowResize(bbWin, LOWORD(lParam), HIWORD(lParam));
             return 0;
         case WM_PAINT:
@@ -571,6 +576,14 @@ void bbTerminate(bbWindow *bbWin){
 void bbClear(){
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glFlush();
+}
+
+void bbClearColorP(bbPixel p){
+    glClearColor(p.R/0xFF, p.G/0xFF, p.B/0xFF, 0xFF);
+}
+
+void bbClearColorB(BYTE r, BYTE g, BYTE b){
+    glClearColor(r/0xFF, g/0xFF, b/0xFF, 0xFF);
 }
 
 void bbPutPixel(u32 x, u32 y, bbPixel p){
