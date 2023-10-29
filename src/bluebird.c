@@ -301,7 +301,8 @@ void bbDEBUGfpsCounter(bbWindow *bbWin);
 LRESULT CALLBACK bbWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 /*
- * Sets the size of the window and 
+ * Resets the size of the window
+ * This is only used in bbWindowProc
  */
 void bbWindowResize(bbWindow *bbWin, u32 w, u32 h);
 
